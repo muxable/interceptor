@@ -6,23 +6,25 @@ import (
 	"github.com/pion/rtcp"
 )
 
+const maxReportsPerReportBlock = 16384
+
 type streamLog struct {
-	ssrc               uint32
-	sequence           unwrapper
-	init               bool
-	nextSequenceNumber int64 // next to report
-	lastSequenceNumber int64 // highest received
-	log                map[int64]*packetReport
+	ssrc                       uint32
+	sequence                   unwrapper
+	init                       bool
+	nextSequenceNumberToReport int64 // next to report
+	lastSequenceNumberReceived int64 // highest received
+	log                        map[int64]*packetReport
 }
 
 func newStreamLog(ssrc uint32) *streamLog {
 	return &streamLog{
-		ssrc:               ssrc,
-		sequence:           unwrapper{},
-		init:               false,
-		nextSequenceNumber: 0,
-		lastSequenceNumber: 0,
-		log:                map[int64]*packetReport{},
+		ssrc:                       ssrc,
+		sequence:                   unwrapper{},
+		init:                       false,
+		nextSequenceNumberToReport: 0,
+		lastSequenceNumberReceived: 0,
+		log:                        map[int64]*packetReport{},
 	}
 }
 
@@ -30,14 +32,14 @@ func (l *streamLog) add(ts time.Time, sequenceNumber uint16, ecn uint8) {
 	unwrappedSequenceNumber := l.sequence.unwrap(sequenceNumber)
 	if !l.init {
 		l.init = true
-		l.nextSequenceNumber = unwrappedSequenceNumber
+		l.nextSequenceNumberToReport = unwrappedSequenceNumber
 	}
 	l.log[unwrappedSequenceNumber] = &packetReport{
 		arrivalTime: ts,
 		ecn:         ecn,
 	}
-	if l.lastSequenceNumber < unwrappedSequenceNumber {
-		l.lastSequenceNumber = unwrappedSequenceNumber
+	if l.lastSequenceNumberReceived < unwrappedSequenceNumber {
+		l.lastSequenceNumberReceived = unwrappedSequenceNumber
 	}
 }
 
@@ -47,15 +49,20 @@ func (l *streamLog) metricsAfter(reference time.Time) rtcp.CCFeedbackReportBlock
 	if len(l.log) == 0 {
 		return rtcp.CCFeedbackReportBlock{
 			MediaSSRC:     l.ssrc,
-			BeginSequence: uint16(l.nextSequenceNumber),
+			BeginSequence: uint16(l.nextSequenceNumberToReport),
 			MetricBlocks:  []rtcp.CCFeedbackMetricBlock{},
 		}
 	}
-	first := l.nextSequenceNumber
-	last := l.nextSequenceNumber
-	lost := false
-	metricBlocks := make([]rtcp.CCFeedbackMetricBlock, l.lastSequenceNumber-first+1)
-	for i := first; i <= l.lastSequenceNumber; i++ {
+	numReports := l.lastSequenceNumberReceived - l.nextSequenceNumberToReport + 1
+	if numReports > maxReportsPerReportBlock {
+		numReports = maxReportsPerReportBlock
+		l.nextSequenceNumberToReport = l.lastSequenceNumberReceived - maxReportsPerReportBlock + 1
+	}
+	metricBlocks := make([]rtcp.CCFeedbackMetricBlock, numReports)
+	offset := l.nextSequenceNumberToReport
+	lastReceived := l.nextSequenceNumberToReport
+	gapDetected := false
+	for i := offset; i <= l.lastSequenceNumberReceived; i++ {
 		received := false
 		ecn := uint8(0)
 		ato := uint16(0)
@@ -64,21 +71,26 @@ func (l *streamLog) metricsAfter(reference time.Time) rtcp.CCFeedbackReportBlock
 			ecn = report.ecn
 			ato = getArrivalTimeOffset(reference, report.arrivalTime)
 		}
-		metricBlocks[i-first] = rtcp.CCFeedbackMetricBlock{
+		metricBlocks[i-offset] = rtcp.CCFeedbackMetricBlock{
 			Received:          received,
 			ECN:               rtcp.ECN(ecn),
 			ArrivalTimeOffset: ato,
 		}
-		if !lost && i == last+1 {
-			delete(l.log, i)
-			l.nextSequenceNumber++
-		} else {
-			lost = true
+
+		if !gapDetected {
+			if received && i == l.nextSequenceNumberToReport {
+				delete(l.log, i)
+				l.nextSequenceNumberToReport++
+				lastReceived = i
+			}
+			if i > lastReceived+1 {
+				gapDetected = true
+			}
 		}
 	}
 	return rtcp.CCFeedbackReportBlock{
 		MediaSSRC:     l.ssrc,
-		BeginSequence: uint16(first),
+		BeginSequence: uint16(offset),
 		MetricBlocks:  metricBlocks,
 	}
 }

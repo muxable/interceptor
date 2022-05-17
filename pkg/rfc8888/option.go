@@ -20,3 +20,11 @@ func SenderNow(f func() time.Time) Option {
 		return nil
 	}
 }
+
+// SendInterval sets the feedback send interval for the interceptor
+func SendInterval(interval time.Duration) Option {
+	return func(s *SenderInterceptor) error {
+		s.interval = interval
+		return nil
+	}
+}

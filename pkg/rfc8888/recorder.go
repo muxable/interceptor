@@ -37,15 +37,26 @@ func (r *Recorder) AddPacket(ts time.Time, ssrc uint32, seq uint16, ecn uint8) {
 
 // BuildReport creates a new rtcp.CCFeedbackReport containing all packets that
 // were added by AddPacket and missing packets.
-func (r *Recorder) BuildReport(now time.Time) *rtcp.CCFeedbackReport {
+func (r *Recorder) BuildReport(now time.Time, maxSize int) *rtcp.CCFeedbackReport {
 	report := &rtcp.CCFeedbackReport{
 		SenderSSRC:      r.ssrc,
 		ReportBlocks:    []rtcp.CCFeedbackReportBlock{},
 		ReportTimestamp: ntpTime32(now),
 	}
 
-	for _, log := range r.streams {
-		block := log.metricsAfter(now)
+	maxReportBlocks := (maxSize - 12 - (8 * len(r.streams))) / 2
+	var maxReportBlocksPerStream int
+	if len(r.streams) > 1 {
+		maxReportBlocksPerStream = maxReportBlocks / (len(r.streams) - 1)
+	} else {
+		maxReportBlocksPerStream = maxReportBlocks
+	}
+
+	for i, log := range r.streams {
+		if len(r.streams) > 1 && int(i) == len(r.streams)-1 {
+			maxReportBlocksPerStream = maxReportBlocks % len(r.streams)
+		}
+		block := log.metricsAfter(now, int64(maxReportBlocksPerStream))
 		report.ReportBlocks = append(report.ReportBlocks, block)
 	}
 

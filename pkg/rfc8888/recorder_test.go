@@ -51,7 +51,7 @@ func TestRecorder(t *testing.T) {
 		recorder.AddPacket(now.Add(625*time.Millisecond), 123456, 4, 0)
 		recorder.AddPacket(now.Add(750*time.Millisecond), 123456, 5, 0)
 
-		report := recorder.BuildReport(now.Add(time.Second))
+		report := recorder.BuildReport(now.Add(time.Second), 1500)
 		assert.Equal(t, 1, len(report.ReportBlocks))
 		assert.Equal(t, rtcp.CCFeedbackReportBlock{
 			MediaSSRC:     123456,
@@ -99,7 +99,7 @@ func TestRecorder(t *testing.T) {
 		recorder.AddPacket(now.Add(625*time.Millisecond), 123456, 4, 0)
 		recorder.AddPacket(now.Add(750*time.Millisecond), 123456, 5, 0)
 
-		report := recorder.BuildReport(now.Add(time.Second))
+		report := recorder.BuildReport(now.Add(time.Second), 1500)
 		assert.Equal(t, 1, len(report.ReportBlocks))
 		assert.Equal(t, 6, len(report.ReportBlocks[0].MetricBlocks))
 		assert.Equal(t, rtcp.CCFeedbackReportBlock{
@@ -138,6 +138,24 @@ func TestRecorder(t *testing.T) {
 				},
 			},
 		}, report.ReportBlocks[0])
+	})
+
+	t.Run("MaxreportsPerStream", func(t *testing.T) {
+		recorder := NewRecorder()
+		now := time.Time{}
+
+		// Add 1000 packets on 10 different streams
+		for i := 0; i < 10; i++ {
+			for j := 0; j < 100; j++ {
+				recorder.AddPacket(now, uint32(i), uint16(j), 0)
+			}
+		}
+		reports := recorder.BuildReport(time.Time{}, 1380)
+
+		for i := 0; i < 10; i++ {
+			assert.Greater(t, 72, len(reports.ReportBlocks[i].MetricBlocks))
+			assert.Less(t, 3, len(reports.ReportBlocks[i].MetricBlocks))
+		}
 	})
 }
 

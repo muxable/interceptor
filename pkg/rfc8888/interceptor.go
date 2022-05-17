@@ -22,13 +22,14 @@ type SenderInterceptorFactory struct {
 // NewInterceptor constructs a new SenderInterceptor
 func (s *SenderInterceptorFactory) NewInterceptor(id string) (interceptor.Interceptor, error) {
 	i := &SenderInterceptor{
-		NoOp:       interceptor.NoOp{},
-		log:        logging.NewDefaultLoggerFactory().NewLogger("rfc8888_interceptor"),
-		lock:       sync.Mutex{},
-		wg:         sync.WaitGroup{},
-		recorder:   NewRecorder(),
-		interval:   100 * time.Millisecond,
-		packetChan: make(chan packet),
+		NoOp:          interceptor.NoOp{},
+		log:           logging.NewDefaultLoggerFactory().NewLogger("rfc8888_interceptor"),
+		lock:          sync.Mutex{},
+		wg:            sync.WaitGroup{},
+		recorder:      NewRecorder(),
+		interval:      100 * time.Millisecond,
+		maxReportSize: 1200,
+		packetChan:    make(chan packet),
 		newTicker: func(d time.Duration) ticker {
 			return &timeTicker{time.NewTicker(d)}
 		},
@@ -52,15 +53,16 @@ func NewSenderInterceptor(opts ...Option) (*SenderInterceptorFactory, error) {
 // SenderInterceptor sends congestion control feedback as specified in RFC 8888.
 type SenderInterceptor struct {
 	interceptor.NoOp
-	log        logging.LeveledLogger
-	lock       sync.Mutex
-	wg         sync.WaitGroup
-	recorder   *Recorder
-	interval   time.Duration
-	packetChan chan packet
-	newTicker  TickerFactory
-	now        func() time.Time
-	close      chan struct{}
+	log           logging.LeveledLogger
+	lock          sync.Mutex
+	wg            sync.WaitGroup
+	recorder      *Recorder
+	interval      time.Duration
+	maxReportSize int64
+	packetChan    chan packet
+	newTicker     TickerFactory
+	now           func() time.Time
+	close         chan struct{}
 }
 
 type packet struct {
@@ -138,6 +140,14 @@ func (s *SenderInterceptor) isClosed() bool {
 func (s *SenderInterceptor) loop(writer interceptor.RTCPWriter) {
 	defer s.wg.Done()
 
+	select {
+	case <-s.close:
+		return
+	case pkt := <-s.packetChan:
+		s.log.Tracef("got first packet: %v", pkt)
+		s.recorder.AddPacket(pkt.arrival, pkt.ssrc, pkt.sequenceNumber, pkt.ecn)
+	}
+
 	s.log.Trace("start loop")
 	t := s.newTicker(s.interval)
 	for {
@@ -156,7 +166,7 @@ func (s *SenderInterceptor) loop(writer interceptor.RTCPWriter) {
 				s.log.Trace("no writer added, continue")
 				continue
 			}
-			pkts := s.recorder.BuildReport(now)
+			pkts := s.recorder.BuildReport(now, int(s.maxReportSize))
 			if pkts == nil {
 				continue
 			}

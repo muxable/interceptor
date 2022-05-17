@@ -26,11 +26,12 @@ func TestInterceptor(t *testing.T) {
 			assert.NoError(t, stream.Close())
 		}()
 
-		pkts := <-stream.WrittenRTCP()
-		assert.Equal(t, len(pkts), 1)
-		fb, ok := pkts[0].(*rtcp.CCFeedbackReport)
-		assert.True(t, ok)
-		assert.Equal(t, fb.ReportBlocks, []rtcp.CCFeedbackReportBlock{})
+		var pkts []rtcp.Packet
+		select {
+		case pkts = <-stream.WrittenRTCP():
+		case <-time.After(300 * time.Millisecond):
+		}
+		assert.Equal(t, len(pkts), 0)
 	})
 
 	t.Run("after RTP packets", func(t *testing.T) {

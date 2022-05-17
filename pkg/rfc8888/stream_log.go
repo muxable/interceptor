@@ -45,7 +45,7 @@ func (l *streamLog) add(ts time.Time, sequenceNumber uint16, ecn uint8) {
 
 // metricsAfter iterates over all packets order of their sequence number.
 // Packets are removed until the first loss is detected.
-func (l *streamLog) metricsAfter(reference time.Time) rtcp.CCFeedbackReportBlock {
+func (l *streamLog) metricsAfter(reference time.Time, maxReportBlocks int64) rtcp.CCFeedbackReportBlock {
 	if len(l.log) == 0 {
 		return rtcp.CCFeedbackReportBlock{
 			MediaSSRC:     l.ssrc,
@@ -54,9 +54,9 @@ func (l *streamLog) metricsAfter(reference time.Time) rtcp.CCFeedbackReportBlock
 		}
 	}
 	numReports := l.lastSequenceNumberReceived - l.nextSequenceNumberToReport + 1
-	if numReports > maxReportsPerReportBlock {
-		numReports = maxReportsPerReportBlock
-		l.nextSequenceNumberToReport = l.lastSequenceNumberReceived - maxReportsPerReportBlock + 1
+	if numReports > maxReportBlocks {
+		numReports = maxReportBlocks
+		l.nextSequenceNumberToReport = l.lastSequenceNumberReceived - maxReportBlocks + 1
 	}
 	metricBlocks := make([]rtcp.CCFeedbackMetricBlock, numReports)
 	offset := l.nextSequenceNumberToReport

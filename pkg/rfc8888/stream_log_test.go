@@ -555,7 +555,7 @@ func TestStreamLogMetricsAfter(t *testing.T) {
 			assert.Equal(t, test.expectedLast, sl.lastSequenceNumberReceived)
 			assert.Equal(t, test.expectedLogBefore, sl.log)
 
-			metrics := sl.metricsAfter(time.Time{}.Add(time.Second))
+			metrics := sl.metricsAfter(time.Time{}.Add(time.Second), 500)
 
 			assert.Equal(t, test.expectedNextAfter, sl.nextSequenceNumberToReport)
 			assert.Equal(t, test.expectedLast, sl.lastSequenceNumberReceived)
@@ -574,7 +574,7 @@ func TestRemoveOldestPackets(t *testing.T) {
 		now = now.Add(10 * time.Millisecond)
 		sl.add(now, uint16(i), 0)
 	}
-	metrics := sl.metricsAfter(now)
+	metrics := sl.metricsAfter(now, maxReportsPerReportBlock)
 	assert.Equal(t, uint16(2), metrics.BeginSequence)
 	assert.Lenf(t, metrics.MetricBlocks, 16384, "%v != %v", len(metrics.MetricBlocks), 16384)
 }

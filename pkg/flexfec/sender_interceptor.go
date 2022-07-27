@@ -1,7 +1,8 @@
 package flexfec
 
-import(
+import (
 	"fmt"
+
 	"github.com/pion/interceptor"
 )
 
@@ -9,7 +10,7 @@ type SenderInterceptor struct {
 	interceptor.NoOp
 }
 
-func NewSenderInterceptor() (interceptor.Interceptor) {
+func NewSenderInterceptor() interceptor.Interceptor {
 	return &SenderInterceptor{}
 }
 

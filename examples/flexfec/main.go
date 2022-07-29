@@ -27,7 +27,7 @@ func sender() {
 		panic(err)
 	}
 
-	sender := flexfec.NewSenderInterceptor()
+	sender := flexfec.NewSenderInterceptor(4, 3, false, false)
 
 	streaminfo := interceptor.StreamInfo{
 		SSRC: ssrc,
@@ -57,6 +57,7 @@ func sender() {
 
 		packet := flexfec.GenerateRTP(1, 1)[0]
 		packet.SequenceNumber = sequenceNumber
+		packet.SSRC = ssrc
 
 		// Send a RTP packet with a Payload of 0x0, 0x1, 0x2
 		if _, err := streamWriter.Write(&packet.Header, packet.Payload, nil); err != nil {

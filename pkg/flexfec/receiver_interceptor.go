@@ -4,10 +4,16 @@ import (
 	"fmt"
 
 	"github.com/pion/interceptor"
+	"github.com/pion/rtp"
 )
 
 type ReceiverInterceptor struct {
 	interceptor.NoOp
+	BUFFER map[Key]rtp.Packet
+	L      uint8
+	D      uint8
+	r      bool
+	f      bool
 }
 
 func NewReceiverInterceptor() interceptor.Interceptor {

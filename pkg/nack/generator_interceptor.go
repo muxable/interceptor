@@ -90,6 +90,11 @@ func (n *GeneratorInterceptor) BindRemoteStream(info *interceptor.StreamInfo, re
 	n.receiveLogsMu.Unlock()
 
 	return interceptor.RTPReaderFunc(func(b []byte, a interceptor.Attributes) (int, interceptor.Attributes, error) {
+		if receiver buffer is not empty {
+			pkt := pop off receiver buffer
+			return copy(b, pkt), a, nil
+		}
+		
 		i, attr, err := reader.Read(b, a)
 		if err != nil {
 			return 0, nil, err

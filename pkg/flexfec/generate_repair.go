@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	ssrc = uint32(2868272638)
+	ssrc = uint32(5001)
 )
 
 var seqnum uint16 = 20000
@@ -141,8 +141,8 @@ func GenerateRepairRowFec(srcBlkBitstrs *[][]byte, L int, is2D bool, SN_Base uin
 	size := len((*srcBlkBitstrs)[0])
 
 	// seqnum := uint16(rand.Intn(65535 - L))
-	fmt.Println("In gen repair")
-	fmt.Println("source block size:", len(*srcBlkBitstrs))
+	// fmt.Println("In gen repair")
+	// fmt.Println("source block size:", len(*srcBlkBitstrs))
 
 	for i := 0; i < len(*srcBlkBitstrs); i += L {
 		rowBitstrings := make([][]byte, L)

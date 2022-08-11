@@ -27,21 +27,21 @@ func sender() {
 		panic(err)
 	}
 
-	sender := flexfec.NewSenderInterceptor(4, 3, false, false)
+	sender := flexfec.NewSenderInterceptor(4, 3, 2)
 
 	streaminfo := interceptor.StreamInfo{
 		SSRC: ssrc,
 	}
 
 	RTP_writerfunc := interceptor.RTPWriterFunc(func(header *rtp.Header, payload []byte, attributes interceptor.Attributes) (int, error) {
-		fmt.Println("Writing to stream")
+		// fmt.Println("Writing to stream")
 
-		currPkt := rtp.Packet{
-			Header:  *header,
-			Payload: payload,
-		}
+		// currPkt := rtp.Packet{
+		// 	Header:  *header,
+		// 	Payload: payload,
+		// }
 
-		fmt.Println(flexfec.PrintPkt(currPkt))
+		// fmt.Println(flexfec.PrintPkt(currPkt))
 
 		headerBuf, err := header.Marshal()
 		if err != nil {
@@ -100,7 +100,7 @@ func receiver() {
 			panic(err)
 		}
 
-		fmt.Println("received RTP")
+		// fmt.Println("received RTP")
 
 		if _, _, err := streamReader.Read(buffer[:i], nil); err != nil {
 			panic(err)
@@ -109,7 +109,7 @@ func receiver() {
 		currPkt := rtp.Packet{}
 		currPkt.Unmarshal(buffer[:i])
 
-		fmt.Println(flexfec.PrintPkt(currPkt))
+		// fmt.Println(flexfec.PrintPkt(currPkt))
 	}
 
 }

@@ -27,7 +27,7 @@ func sender() {
 		panic(err)
 	}
 
-	sender := flexfec.NewSenderInterceptor(4, 3, 2)
+	sender := flexfec.NewSenderInterceptor(4, 1, 0)
 
 	streaminfo := interceptor.StreamInfo{
 		SSRC: ssrc,

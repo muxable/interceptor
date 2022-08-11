@@ -1,8 +1,8 @@
 package flexfec
 
 import (
-	"os"
 	"fmt"
+	"os"
 
 	"github.com/pion/interceptor"
 	"github.com/pion/rtp"
@@ -35,7 +35,7 @@ func (i *SenderInterceptor) BindLocalStream(info *interceptor.StreamInfo, writer
 	testcaseMap := GetTestCaseMap(i.variant)
 
 	return interceptor.RTPWriterFunc(func(header *rtp.Header, payload []byte, attributes interceptor.Attributes) (int, error) {
-
+		fmt.Println(header.SequenceNumber, i.L, i.D)
 		_, isPresent := testcaseMap[int(header.SequenceNumber)%int(i.L*i.D)]
 
 		if len(i.sentPackets) < int(i.L*i.D) {
@@ -43,7 +43,7 @@ func (i *SenderInterceptor) BindLocalStream(info *interceptor.StreamInfo, writer
 				Header:  *header,
 				Payload: payload,
 			})
-		} else { 
+		} else {
 
 			fmt.Println((White), "Curr src block sender Buffer")
 			PrintBuffer(i.sentPackets) // printing BUFFER
@@ -60,7 +60,7 @@ func (i *SenderInterceptor) BindLocalStream(info *interceptor.StreamInfo, writer
 				// Writing to rfile
 				fmt.Fprintln(file, "sending repiar packet")
 				fmt.Fprintln(file, PrintPkt(pkt))
-				
+
 				writer.Write(&pkt.Header, pkt.Payload, nil)
 
 			}
@@ -89,7 +89,7 @@ func (i *SenderInterceptor) BindLocalStream(info *interceptor.StreamInfo, writer
 
 		// Writing to console
 		fmt.Println(string(Red), "Missing Src Packet : ", (*header).SequenceNumber)
-		
+
 		// Writing to sender file
 		fmt.Fprintln(file, "Missing Src Packet")
 		fmt.Fprintln(file, PrintPkt(rtp.Packet{

@@ -29,12 +29,14 @@ type ReceiverInterceptor struct {
 	interceptor.NoOp
 	recievedBuffer map[uint32]map[Key]rtp.Packet
 	repairBuffer   []rtp.Packet
+	recoveredBuffer map[uint32][]rtp.Packet
 }
 
 func NewReceiverInterceptor() interceptor.Interceptor {
 	return &ReceiverInterceptor{
 		recievedBuffer: map[uint32]map[Key]rtp.Packet{},
 		repairBuffer:   []rtp.Packet{},
+		recoveredBuffer : map[uint32][]rtp.Packet{},
 	}
 }
 
@@ -45,9 +47,12 @@ func (i *ReceiverInterceptor) BindRemoteStream(info *interceptor.StreamInfo, rea
 	if err != nil {
 		fmt.Println("file error")
 	}
+
 	return interceptor.RTPReaderFunc(func(b []byte, attributes interceptor.Attributes) (int, interceptor.Attributes, error) {
 		// recieve packets, and repair packets
-		// code
+
+		
+
 		currPkt := rtp.Packet{}
 		currPkt.Unmarshal(b)
 
@@ -57,20 +62,28 @@ func (i *ReceiverInterceptor) BindRemoteStream(info *interceptor.StreamInfo, rea
 			// Writing to console
 			fmt.Println(string(Green), "Received src packet : ", currPkt.SequenceNumber)
 			Update(i.recievedBuffer[info.SSRC], currPkt)
+
+			// Writing to file
+			fmt.Fprintln(file, "Recieved src Packet : ")
+			fmt.Fprintln(file, PrintPkt(currPkt))
+
 		} else if currPkt.SSRC == repairSSRC {
 			// Writing to console
 			fmt.Println(string(Blue), "Recieved Repair Packet : ", currPkt.SequenceNumber)
 
-			// Writing to rfile
+			// Writing to file
 			fmt.Fprintln(file, "Recieved Repair Packet : ")
 			fmt.Fprintln(file, PrintPkt(currPkt))
 			i.repairBuffer = append(i.repairBuffer, currPkt)
 
 		} else {
-
 			// Writing to console
 			fmt.Println(string(Green), "Received src packet : ", currPkt.SequenceNumber)
 			Update(i.recievedBuffer[info.SSRC], currPkt)
+
+			// Writing to file
+			fmt.Fprintln(file, "Recieved src Packet : ")
+			fmt.Fprintln(file, PrintPkt(currPkt))
 		}
 
 		// recovery phase
@@ -100,7 +113,7 @@ func (i *ReceiverInterceptor) BindRemoteStream(info *interceptor.StreamInfo, rea
 			var fetchPacket rtp.Packet = rtp.Packet{}
 			select {
 			case res := <-recoveryStatusChan:
-				fmt.Println(res)
+				// fmt.Println(res)
 				asyncStatus = res
 				fetchPacket = <-recoverPktChan
 
@@ -115,20 +128,34 @@ func (i *ReceiverInterceptor) BindRemoteStream(info *interceptor.StreamInfo, rea
 			} else if asyncStatus == 0 {
 				fmt.Println(string(White), "Using repair packet ", currRecPkt.SequenceNumber, "to recover")
 				fmt.Println("Recovered Packet :", fetchPacket.SequenceNumber, "\n")
-				// fmt.Printf("Recovered Packet\n\n")
-				// fmt.Println(PrintPkt(fetchPacket))
-
+				
 				fmt.Fprintln(file, "Recovered packet\n", PrintPkt(fetchPacket))
 				Update(i.recievedBuffer[info.SSRC], fetchPacket)
+				i.recoveredBuffer[info.SSRC] = append(i.recoveredBuffer[info.SSRC], fetchPacket)
 			} else if asyncStatus == -1 {
-				fmt.Println(string(White), "Recovery not possible")
-				fmt.Println()
+				fmt.Println(string(White), "Recovery not possible\n")
 				i.repairBuffer = append(i.repairBuffer, currRecPkt)
 				break
 			} else if asyncStatus == -2 {
 				fmt.Println("Either packet to recover was too big or something else is wrong!")
 			}
 
+		}
+
+		if _, present := i.recoveredBuffer[info.SSRC]; !present {
+			i.recoveredBuffer[info.SSRC] = []rtp.Packet{}
+		}
+
+		if len(i.recoveredBuffer[info.SSRC]) > 0 {
+			pkt := i.recoveredBuffer[info.SSRC][0]
+			i.recoveredBuffer[info.SSRC] = i.recoveredBuffer[info.SSRC][1:]
+
+			buf, err := pkt.Marshal()
+			if err != nil {
+				fmt.Println("error :", err)
+			}
+
+			return copy(b, buf), attributes, nil
 		}
 
 		return reader.Read(b, attributes)

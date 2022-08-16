@@ -35,7 +35,7 @@ func (i *SenderInterceptor) BindLocalStream(info *interceptor.StreamInfo, writer
 	testcaseMap := GetTestCaseMap(i.variant)
 
 	return interceptor.RTPWriterFunc(func(header *rtp.Header, payload []byte, attributes interceptor.Attributes) (int, error) {
-		fmt.Println(header.SequenceNumber, i.L, i.D)
+		// fmt.Println(header.SequenceNumber, i.L, i.D)
 		_, isPresent := testcaseMap[int(header.SequenceNumber)%int(i.L*i.D)]
 
 		if len(i.sentPackets) < int(i.L*i.D) {

@@ -27,16 +27,16 @@ const (
 
 type ReceiverInterceptor struct {
 	interceptor.NoOp
-	recievedBuffer map[uint32]map[Key]rtp.Packet
-	repairBuffer   []rtp.Packet
+	recievedBuffer  map[uint32]map[Key]rtp.Packet
+	repairBuffer    []rtp.Packet
 	recoveredBuffer map[uint32][]rtp.Packet
 }
 
 func NewReceiverInterceptor() interceptor.Interceptor {
 	return &ReceiverInterceptor{
-		recievedBuffer: map[uint32]map[Key]rtp.Packet{},
-		repairBuffer:   []rtp.Packet{},
-		recoveredBuffer : map[uint32][]rtp.Packet{},
+		recievedBuffer:  map[uint32]map[Key]rtp.Packet{},
+		repairBuffer:    []rtp.Packet{},
+		recoveredBuffer: map[uint32][]rtp.Packet{},
 	}
 }
 
@@ -50,8 +50,6 @@ func (i *ReceiverInterceptor) BindRemoteStream(info *interceptor.StreamInfo, rea
 
 	return interceptor.RTPReaderFunc(func(b []byte, attributes interceptor.Attributes) (int, interceptor.Attributes, error) {
 		// recieve packets, and repair packets
-
-		
 
 		currPkt := rtp.Packet{}
 		currPkt.Unmarshal(b)
@@ -118,7 +116,7 @@ func (i *ReceiverInterceptor) BindRemoteStream(info *interceptor.StreamInfo, rea
 				fetchPacket = <-recoverPktChan
 
 				// max timeout of recovery
-			case <-time.After(1 * time.Second):
+			case <-time.After(2 * time.Second):
 				fmt.Println("timeout")
 				fmt.Println("Recovery exited")
 			}
@@ -128,7 +126,7 @@ func (i *ReceiverInterceptor) BindRemoteStream(info *interceptor.StreamInfo, rea
 			} else if asyncStatus == 0 {
 				fmt.Println(string(White), "Using repair packet ", currRecPkt.SequenceNumber, "to recover")
 				fmt.Println("Recovered Packet :", fetchPacket.SequenceNumber, "\n")
-				
+
 				fmt.Fprintln(file, "Recovered packet\n", PrintPkt(fetchPacket))
 				Update(i.recievedBuffer[info.SSRC], fetchPacket)
 				i.recoveredBuffer[info.SSRC] = append(i.recoveredBuffer[info.SSRC], fetchPacket)
@@ -154,6 +152,7 @@ func (i *ReceiverInterceptor) BindRemoteStream(info *interceptor.StreamInfo, rea
 			if err != nil {
 				fmt.Println("error :", err)
 			}
+			b = []byte{}
 
 			return copy(b, buf), attributes, nil
 		}
@@ -164,4 +163,5 @@ func (i *ReceiverInterceptor) BindRemoteStream(info *interceptor.StreamInfo, rea
 
 func (i *ReceiverInterceptor) UnbindRemoteStream(info *interceptor.StreamInfo) {
 	delete(i.recievedBuffer, info.SSRC)
+	delete(i.recoveredBuffer, info.SSRC)
 }

@@ -13,14 +13,15 @@ type SenderInterceptor struct {
 	L           uint8
 	D           uint8
 	variant     int
-	sentPackets []rtp.Packet
+	sentPackets map[uint32][]rtp.Packet
 }
 
 func NewSenderInterceptor(L, D uint8, variant int) interceptor.Interceptor {
 	return &SenderInterceptor{
-		L:       L,
-		D:       D,
-		variant: variant,
+		L:           L,
+		D:           D,
+		variant:     variant,
+		sentPackets: map[uint32][]rtp.Packet{},
 	}
 }
 
@@ -38,22 +39,27 @@ func (i *SenderInterceptor) BindLocalStream(info *interceptor.StreamInfo, writer
 		// fmt.Println(header.SequenceNumber, i.L, i.D)
 		_, isPresent := testcaseMap[int(header.SequenceNumber)%int(i.L*i.D)]
 
-		if len(i.sentPackets) < int(i.L*i.D) {
-			i.sentPackets = append(i.sentPackets, rtp.Packet{
+		if _, isBufPresent := i.sentPackets[info.SSRC]; !isBufPresent {
+			i.sentPackets[info.SSRC] = []rtp.Packet{}
+		}
+
+		if len(i.sentPackets[info.SSRC]) < int(i.L*i.D) {
+			i.sentPackets[info.SSRC] = append(i.sentPackets[info.SSRC], rtp.Packet{
 				Header:  *header,
 				Payload: payload,
 			})
 		} else {
 
 			fmt.Println((White), "Curr src block sender Buffer")
-			PrintBuffer(i.sentPackets) // printing BUFFER
+			PrintBuffer(i.sentPackets[info.SSRC]) // printing BUFFER
 
-			bitstrings := GetBlockBitstring(&i.sentPackets)
+			currPackets := i.sentPackets[info.SSRC]
+			bitstrings := GetBlockBitstring(&currPackets)
 			PadBitStrings(&bitstrings, -1)
 
 			// fmt.Println("sorce block starting sn:", i.sentPackets[0].SequenceNumber)
 
-			repairPackets := GenerateRepairLD(&bitstrings, int(i.L), int(i.D), i.variant, i.sentPackets[0].SequenceNumber)
+			repairPackets := GenerateRepairLD(&bitstrings, int(i.L), int(i.D), i.variant, i.sentPackets[info.SSRC][0].SequenceNumber)
 
 			fmt.Println(string(Blue), "---sending repiar packets---")
 			for _, pkt := range repairPackets {
@@ -66,8 +72,8 @@ func (i *SenderInterceptor) BindLocalStream(info *interceptor.StreamInfo, writer
 			}
 
 			// next block
-			i.sentPackets = []rtp.Packet{}
-			i.sentPackets = append(i.sentPackets, rtp.Packet{
+			i.sentPackets[info.SSRC] = []rtp.Packet{}
+			i.sentPackets[info.SSRC] = append(i.sentPackets[info.SSRC], rtp.Packet{
 				Header:  *header,
 				Payload: payload,
 			})
@@ -99,4 +105,8 @@ func (i *SenderInterceptor) BindLocalStream(info *interceptor.StreamInfo, writer
 
 		return 0, nil
 	})
+}
+
+func (i *SenderInterceptor) UnbindLocalStream(info *interceptor.StreamInfo) {
+	delete(i.sentPackets, info.SSRC)
 }
